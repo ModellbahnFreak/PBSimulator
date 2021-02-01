@@ -10,6 +10,9 @@ const code = document.getElementById("code");
 const run = document.getElementById("btnRun");
 const programCounter = document.getElementById("programCounter");
 const stack = document.getElementById("stack");
+const pointer = document.getElementById("pointer");
+const stepDelay = document.getElementById("stepDelay");
+const lblStepDelay = document.getElementById("lblStepDelay");
 
 const lineNumbers = document.getElementById("lineNumbers");
 lineNumbers.innerText = "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15";
@@ -50,6 +53,7 @@ const pico = new PicoBlaze(() => {
                 }`
         )
         .join("\n");
+    pointer.style.top = pico._programCounter * 1.5 + "em";
 });
 pico.clearRam();
 pico.clearRegisters();
@@ -76,6 +80,9 @@ function compileAndShow() {
 }
 code.addEventListener("input", compileAndShow);
 code.addEventListener("change", compileAndShow);
+stepDelay.addEventListener("input", () => {
+    lblStepDelay.innerText = stepDelay.value;
+});
 document.getElementById("btnParse").addEventListener("click", compileAndShow);
 run.addEventListener("click", () => {
     if (pico.shouldRun) {
@@ -84,7 +91,16 @@ run.addEventListener("click", () => {
     } else {
         pico.shouldRun = true;
         run.innerText = "Stop";
-        pico.run();
+        pico.run(parseInt(stepDelay.value))
+            .then(() => {
+                pico.shouldRun = false;
+                run.innerText = "Run";
+            })
+            .catch((err) => {
+                pico.shouldRun = false;
+                run.innerText = "Run";
+                throw err;
+            });
     }
 });
 document.getElementById("btnStep").addEventListener("click", () => {

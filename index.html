@@ -8,9 +8,11 @@
             .valueList {
                 column-width: 250px;
                 font-family: "Courier New", Courier, monospace;
+                font-size: 11pt;
             }
             .mono {
                 font-family: "Courier New", Courier, monospace;
+                font-size: 11pt;
             }
         </style>
     </head>
@@ -21,18 +23,19 @@
                 position: relative;
                 display: flex;
                 padding-left: 12px;
-                line-height: 1.5rem;
+                line-height: 1.5em;
                 overflow: auto;
-                height: calc(15 * 1.5rem);
+                height: calc(15 * 1.5em);
             "
         >
             <div
                 style="
                     position: absolute;
                     left: 0;
-                    height: 1rem;
+                    height: 1em;
                     font-weight: bold;
                 "
+                id="pointer"
             >
                 &gt;
             </div>
@@ -49,11 +52,11 @@
                     /*background: repeating-linear-gradient(
                         180deg,
                         transparent,
-                        transparent calc(1.2rem - 1px),
-                        lightgray calc(1.2rem - 1px),
-                        lightgray 1.2rem,
-                        transparent 1.2rem,
-                        transparent 1.5rem
+                        transparent calc(1.2em - 1px),
+                        lightgray calc(1.2em - 1px),
+                        lightgray 1.2em,
+                        transparent 1.2em,
+                        transparent 1.5em
                     );*/
                 "
             ></div>
@@ -63,7 +66,10 @@
         <button id="btnStep">Step</button>
         <button id="btnReset">Reset</button>
         <button id="btnClear">Clear all</button>
-        <button id="btnParse">Parse</button>
+        <button id="btnParse">Parse</button><br />
+        <label for="stepDelay">Step time (ms)</label>
+        <input type="range" min="1" max="2000" id="stepDelay" value="500" />
+        <label id="lblStepDelay">500</label>
         <br /><br />
         <h5>Program counter</h5>
         <div id="programCounter" class="mono"></div>

@@ -11,10 +11,10 @@ const SL0 = 0x0b;
 const SL1 = 0x0c;
 const SLA = 0x0d;
 const SLX = 0x0e;
-const SR0 = 0x0b;
-const SR1 = 0x0c;
-const SRA = 0x0d;
-const SRX = 0x0e;
+const SR0 = 0x0f;
+const SR1 = 0x10;
+const SRA = 0x12;
+const SRX = 0x13;
 
 export class PicoBlaze {
     _ram = new Uint8Array(64);
@@ -25,6 +25,7 @@ export class PicoBlaze {
     _programCounter = 0; //10 bit num
     _stackPointer = 30; //5 bit num
     _changedCallback = () => {};
+    _runPromise = null;
 
     shouldRun = false;
     getInput = (port) => 0xff;
@@ -37,17 +38,33 @@ export class PicoBlaze {
         }
     }
 
-    run(delay) {
-        if (shouldRun) {
-            if (this.step() === 0) {
-                setTimeout(
-                    delay,
-                    (() => {
-                        this.run(delay);
-                    }).bind(this),
-                    delay ?? 500
-                );
+    async run(delay) {
+        if (this.shouldRun) {
+            let promise = null;
+            if (!this._runPromise) {
+                promise = new Promise((resolve, reject) => {
+                    this._runPromise = { resolve, reject };
+                });
             }
+            try {
+                if (this.step() === 0) {
+                    setTimeout(
+                        (() => {
+                            this.run(delay);
+                        }).bind(this),
+                        delay ?? 500
+                    );
+                } else {
+                    this.shouldRun = false;
+                    this._runPromise?.resolve();
+                    this._runPromise = null;
+                }
+            } catch (err) {
+                this.shouldRun = false;
+                this._runPromise?.resolve();
+                this._runPromise = null;
+            }
+            return promise;
         }
     }
 
@@ -146,7 +163,7 @@ export class PicoBlaze {
                         break;
                     default:
                         throw new Error(
-                            `Unknown instruction at 0x${this._programCounter.toString(
+                            `Unknown shift type at 0x${this._programCounter.toString(
                                 16
                             )}`
                         );
@@ -158,7 +175,7 @@ export class PicoBlaze {
                 break;
             case 0x31: //conditional call
                 doClockCycle = false;
-                switch (op2) {
+                switch (opReg1) {
                     case 0x0: //call if zero
                         if (this._zeroFlag) {
                             this.call(immediate);
@@ -181,7 +198,7 @@ export class PicoBlaze {
                         break;
                     default:
                         throw new Error(
-                            `Unknown instruction at 0x${this._programCounter.toString(
+                            `Unknown call type at 0x${this._programCounter.toString(
                                 16
                             )}`
                         );
@@ -193,7 +210,7 @@ export class PicoBlaze {
                 break;
             case 0x35: //conditional jump
                 doClockCycle = false;
-                switch (op2) {
+                switch (opReg1) {
                     case 0x0: //jump if zero
                         if (this._zeroFlag) {
                             this.jump(immediate);
@@ -216,7 +233,7 @@ export class PicoBlaze {
                         break;
                     default:
                         throw new Error(
-                            `Unknown instruction at 0x${this._programCounter.toString(
+                            `Unknown jump type at 0x${this._programCounter.toString(
                                 16
                             )}`
                         );
@@ -226,9 +243,9 @@ export class PicoBlaze {
                 doClockCycle = false;
                 this.return();
                 break;
-            case 0x35: //conditional return
+            case 0x2b: //conditional return
                 doClockCycle = false;
-                switch (op2) {
+                switch (opReg1) {
                     case 0x0: //return if zero
                         if (this._zeroFlag) {
                             this.return();
@@ -251,7 +268,7 @@ export class PicoBlaze {
                         break;
                     default:
                         throw new Error(
-                            `Unknown instruction at 0x${this._programCounter.toString(
+                            `Unknown return type at 0x${this._programCounter.toString(
                                 16
                             )}`
                         );
@@ -295,22 +312,25 @@ export class PicoBlaze {
                 break;
             default:
                 throw new Error(
-                    `Unknown instruction at 0x${this._programCounter.toString(
+                    `Unknown instruction type at 0x${this._programCounter.toString(
                         16
                     )}`
                 );
         }
-        this.clockCycle(
-            opReg1,
-            opReg2,
-            immediate,
-            useImmediate,
-            storeResult ? opReg1 : -1,
-            0,
-            false,
-            aluOpCode
-        );
+        if (doClockCycle) {
+            this.clockCycle(
+                opReg1,
+                opReg2,
+                immediate,
+                useImmediate,
+                storeResult ? opReg1 : -1,
+                0,
+                false,
+                aluOpCode
+            );
+        }
         this._programCounter = (this._programCounter + 1) % 1024;
+        this._changedCallback();
         return 0;
     }
 
@@ -329,6 +349,7 @@ export class PicoBlaze {
         this._zeroFlag = false;
         this._carryFlag = false;
         this._stack.fill(0, 0);
+        this._changedCallback();
     }
 
     clockCycle(
@@ -363,9 +384,9 @@ export class PicoBlaze {
             aluOpCode == SRA ||
             aluOpCode == SRX
         ) {
-            this._carryFlag = (op1 && 0x01) == 0x01;
+            this._carryFlag = (op1 & 0x01) === 0x01;
         } else {
-            this._carryFlag = (res >> 8 && 0x01) == 0x01;
+            this._carryFlag = ((res >> 8) & 0x01) === 0x01;
         }
         res = 0xff & res;
         this._zeroFlag = res == 0;
@@ -375,7 +396,6 @@ export class PicoBlaze {
                 ? inPort[useImmediateOp2 ? immediateVal : op2]
                 : res;
         }
-        this._changedCallback();
     }
 
     alu(opCode, op1, op2) {
@@ -416,7 +436,7 @@ export class PicoBlaze {
                 return ((op1 >> 1) & 0x7f) | (op1 & 0x80);
             default:
                 throw new Error(
-                    `Unknown instruction at 0x${this._programCounter.toString(
+                    `Unknown alu op code ${opCode} at 0x${this._programCounter.toString(
                         16
                     )}`
                 );
@@ -427,28 +447,29 @@ export class PicoBlaze {
         this.checkRegAddr(register);
         this.checkRamAddr(ramAddress);
         this._ram[ramAddress] = this._registers[register];
-        this._changedCallback();
     }
 
     loadRam(register, ramAddress) {
         this.checkRegAddr(register);
         this.checkRamAddr(ramAddress);
         this._registers[register] = this._ram[ramAddress];
-        this._changedCallback();
     }
 
     jump(address) {
-        this.checkPgmAddr(addr);
-        this._programCounter = address;
-        this._changedCallback();
+        this.checkPgmAddr(address);
+        this._programCounter = address - 1;
     }
 
     call(address) {
-        this.checkPgmAddr(addr);
+        this.checkPgmAddr(address);
         this._stackPointer = (this._stackPointer + 1) % 31;
         this._stack[this._stackPointer] = this._programCounter;
-        this._programCounter = address;
-        this._changedCallback();
+        this._programCounter = address - 1;
+    }
+
+    return() {
+        this._programCounter = this._stack[this._stackPointer];
+        this._stackPointer = ((this._stackPointer + 30) % 31) - 1;
     }
 
     input(register, port) {
@@ -485,11 +506,5 @@ export class PicoBlaze {
         if (addr < 0 || addr > 255) {
             throw new Error(`Illegal port address 0x${addr.toString(16)}`);
         }
-    }
-
-    return() {
-        this._programCounter = this._stack[this._stackPointer];
-        this._stackPointer = (this._stackPointer + 30) % 31;
-        this._changedCallback();
     }
 }

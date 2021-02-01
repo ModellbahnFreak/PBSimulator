@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>PicoBlaze Interpreter</title>
+    </head>
+    <body>
+        <div
+            style="
+                position: relative;
+                display: flex;
+                font-family: 'Courier New', Courier, monospace;
+                padding-left: 12px;
+                line-height: 1.5rem;
+                background: repeating-linear-gradient(
+                    180deg,
+                    transparent,
+                    transparent calc(1.2rem - 1px),
+                    lightgray calc(1.2rem - 1px),
+                    lightgray 1.2rem,
+                    transparent 1.2rem,
+                    transparent 1.5rem
+                );
+            "
+        >
+            <div
+                style="
+                    position: absolute;
+                    left: 0;
+                    height: 1rem;
+                    font-weight: bold;
+                "
+            >
+                &gt;
+            </div>
+            <div style="height: 100%" id="lineNumbers"></div>
+            <div
+                id="code"
+                contenteditable="true"
+                style="height: calc(15 * 1.5rem); flex-grow: 1; overflow: auto"
+            ></div>
+        </div>
+        <br />
+        <button id="btnRun">Run</button>
+        <button id="btnStep">Step</button>
+        <button id="btnReset">Reset</button>
+        <button id="btnClear">Clear all</button>
+        <button id="btnParse">Parse</button>
+        <br /><br />
+        <h5>Registers:</h5>
+        <div id="registers"></div>
+        <br />
+        <h5>RAM:</h5>
+        <div id="ram" stale="column-width: 250px;"></div>
+        <h5>Progmem:</h5>
+        <div id="progmem" stale="column-width: 250px;"></div>
+
+        <script src="main.js" type="module"></script>
+    </body>
+</html>

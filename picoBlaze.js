@@ -141,19 +141,77 @@ export class PicoBlaze {
                             this.call(immediate);
                         }
                         break;
-                    case 0x0: //call not zero
-                        if (this._zeroFlag) {
+                    case 0x4: //call not zero
+                        if (!this._zeroFlag) {
                             this.call(immediate);
                         }
                         break;
-                    case 0x0: //call if carry
-                        if (this._zeroFlag) {
+                    case 0x8: //call if carry
+                        if (this._carryFlag) {
                             this.call(immediate);
                         }
                         break;
-                    case 0x0: //call not carry
-                        if (this._zeroFlag) {
+                    case 0xc: //call not carry
+                        if (!this._carryFlag) {
                             this.call(immediate);
+                        }
+                        break;
+                }
+                break;
+            case 0x34: //jump
+                doClockCycle = false;
+                this.jump(immediate);
+                break;
+            case 0x35: //conditional jump
+                doClockCycle = false;
+                switch (op2) {
+                    case 0x0: //jump if zero
+                        if (this._zeroFlag) {
+                            this.jump(immediate);
+                        }
+                        break;
+                    case 0x4: //jump not zero
+                        if (!this._zeroFlag) {
+                            this.jump(immediate);
+                        }
+                        break;
+                    case 0x8: //jump if carry
+                        if (this._carryFlag) {
+                            this.jump(immediate);
+                        }
+                        break;
+                    case 0xc: //jump not carry
+                        if (!this._carryFlag) {
+                            this.jump(immediate);
+                        }
+                        break;
+                }
+                break;
+            case 0x2a: //return
+                doClockCycle = false;
+                this.return();
+                break;
+            case 0x35: //conditional return
+                doClockCycle = false;
+                switch (op2) {
+                    case 0x0: //return if zero
+                        if (this._zeroFlag) {
+                            this.return();
+                        }
+                        break;
+                    case 0x4: //return not zero
+                        if (!this._zeroFlag) {
+                            this.return();
+                        }
+                        break;
+                    case 0x8: //return if carry
+                        if (this._carryFlag) {
+                            this.return();
+                        }
+                        break;
+                    case 0xc: //return not carry
+                        if (!this._carryFlag) {
+                            this.return();
                         }
                         break;
                 }
@@ -277,6 +335,11 @@ export class PicoBlaze {
 
     loadRam(register, ramAddress) {
         this._registers[register] = this._ram[ramAddress];
+        this._changedCallback();
+    }
+
+    jump(address) {
+        this._programCounter = address;
         this._changedCallback();
     }
 

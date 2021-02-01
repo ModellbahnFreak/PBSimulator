@@ -28,11 +28,10 @@ const pico = new PicoBlaze(() => {
     if (ramFields) {
         pico._ram.forEach((v, i) => {
             ramFields[i].field.value = v.toString(16).padStart(2, "0");
-            ramFields[i].label.innerText = `0x${i
+            ramFields[i].label1.innerText = `0x${i
                 .toString(16)
-                .padStart(2, "0")}: 0b${v
-                .toString(2)
-                .padStart(8, "0")} = ${String.fromCharCode(v)} = 0x`;
+                .padStart(2, "0")}: 0b${v.toString(2).padStart(8, "0")} = 0x`;
+            ramFields[i].label2.innerText = ` = ${String.fromCharCode(v)}`;
         });
     }
     stack.innerText = [...pico._stack]
@@ -81,16 +80,7 @@ run.addEventListener("click", () => {
     } else {
         pico.shouldRun = true;
         run.innerText = "Stop";
-        pico.run(parseInt(stepDelay.value))
-            .then(() => {
-                pico.shouldRun = false;
-                run.innerText = "Run";
-            })
-            .catch((err) => {
-                pico.shouldRun = false;
-                run.innerText = "Run";
-                throw err;
-            });
+        pico.run(parseInt(stepDelay.value));
     }
 });
 document.getElementById("btnStep").addEventListener("click", () => {
@@ -109,28 +99,34 @@ ramFields = [...pico._ram].map((v, i) => {
     field.type = "text";
     field.id = "ramAddr" + i;
     field.pattern = "[0-9a-fA-F]{0,2}";
-    const label = document.createElement("label");
+    field.style.width = "2em";
+    const label1 = document.createElement("label");
+    const label2 = document.createElement("label");
     field.addEventListener("input", () => {
         if (field.validity.valid) {
             const val = parseInt(field.value, 16);
             if (isFinite(val)) {
                 pico._ram[i] = val;
-                label.innerText = `0x${i
+                label1.innerText = `0x${i
                     .toString(16)
                     .padStart(2, "0")}: 0b${pico._ram[i]
                     .toString(2)
-                    .padStart(8, "0")} = ${String.fromCharCode(v)} = 0x`;
+                    .padStart(8, "0")} = 0x`;
+                label2.innerText = ` = ${String.fromCharCode(v)}`;
             }
         }
     });
-    label.setAttribute("for", field.id);
-    label.innerText = `0x${i.toString(16).padStart(2, "0")}: 0b${v
+    label1.setAttribute("for", field.id);
+    label1.innerText = `0x${i.toString(16).padStart(2, "0")}: 0b${v
         .toString(2)
-        .padStart(8, "0")} = ${String.fromCharCode(v)} = 0x`;
-    ram.appendChild(label);
+        .padStart(8, "0")} = 0x`;
+    label2.setAttribute("for", field.id);
+    label2.innerText = ` = ${String.fromCharCode(v)}`;
+    ram.appendChild(label1);
     ram.appendChild(field);
+    ram.appendChild(label2);
     ram.appendChild(document.createElement("br"));
-    return { field, label };
+    return { field, label1, label2 };
 });
 
 pico.clearRam();

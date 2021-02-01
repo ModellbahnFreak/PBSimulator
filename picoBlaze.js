@@ -1,3 +1,4 @@
+const NOP = 0x00;
 const AND = 0x02;
 const OR = 0x03;
 const XOR = 0x04;
@@ -25,7 +26,6 @@ export class PicoBlaze {
     _programCounter = 0; //10 bit num
     _stackPointer = 30; //5 bit num
     _changedCallback = () => {};
-    _runPromise = null;
 
     shouldRun = false;
     getInput = (port) => 0xff;
@@ -40,12 +40,6 @@ export class PicoBlaze {
 
     async run(delay) {
         if (this.shouldRun) {
-            let promise = null;
-            if (!this._runPromise) {
-                promise = new Promise((resolve, reject) => {
-                    this._runPromise = { resolve, reject };
-                });
-            }
             try {
                 if (this.step() === 0) {
                     setTimeout(
@@ -56,23 +50,15 @@ export class PicoBlaze {
                     );
                 } else {
                     this.shouldRun = false;
-                    this._runPromise?.resolve();
-                    this._runPromise = null;
                 }
             } catch (err) {
                 this.shouldRun = false;
-                this._runPromise?.resolve();
-                this._runPromise = null;
             }
-            return promise;
         }
     }
 
     step() {
         const instr = this.instructionProm[this._programCounter];
-        if (instr === 0) {
-            return 1;
-        }
         const opCode = (instr & 0xff000) >> 12;
         const opReg1 = (instr & 0xf00) >> 8;
         const opReg2 = (instr & 0xf0) >> 4;
@@ -128,6 +114,11 @@ export class PicoBlaze {
             case 0x13: //TEST
                 aluOpCode = AND;
                 storeResult = false;
+                break;
+            case 0x00: //LOAD immediate
+                useImmediate = true;
+            case 0x01: //LOAD register
+                aluOpCode = NOP;
                 break;
             case 0x20: //shift
                 switch (immediate) {
@@ -400,6 +391,8 @@ export class PicoBlaze {
 
     alu(opCode, op1, op2) {
         switch (opCode) {
+            case NOP:
+                return op2;
             case AND:
                 return op1 & op2;
             case OR:

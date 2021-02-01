@@ -1,13 +1,15 @@
 import { compile } from "./compiler.js";
 import { PicoBlaze } from "./picoBlaze.js";
 
+window.addEventListener("error", (err) => alert(err.message));
+
 const ram = document.getElementById("ram");
 const registers = document.getElementById("registers");
 const progmem = document.getElementById("progmem");
 const code = document.getElementById("code");
 
-document.getElementById("lineNumbers").innerText =
-    "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15";
+const lineNumbers = document.getElementById("lineNumbers");
+lineNumbers.innerText = "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15";
 
 const pico = new PicoBlaze(() => {
     registers.innerText = [...pico._registers]
@@ -31,7 +33,7 @@ const pico = new PicoBlaze(() => {
 });
 pico.clearRam();
 pico.clearRegisters();
-document.getElementById("btnParse").addEventListener("click", () => {
+function compileAndShow() {
     pico.instructionProm = new Uint32Array(
         code.innerText
             .split("\n")
@@ -46,7 +48,15 @@ document.getElementById("btnParse").addEventListener("click", () => {
                     .padStart(5, "0")}`
         )
         .join("\n");
-});
+    let lineNumText = "";
+    for (let i = 0; i < pico.instructionProm.length; i++) {
+        lineNumText += `0x${i.toString(16).padStart(3, "0")}\n`;
+    }
+    lineNumbers.innerText = lineNumText;
+}
+code.addEventListener("input", compileAndShow);
+code.addEventListener("change", compileAndShow);
+document.getElementById("btnParse").addEventListener("click", compileAndShow);
 document.getElementById("btnRun").addEventListener("click", () => {});
 document.getElementById("btnStep").addEventListener("click", () => {
     pico.step();

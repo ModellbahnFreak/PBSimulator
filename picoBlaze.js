@@ -26,6 +26,8 @@ export class PicoBlaze {
     _stackPointer = 30; //5 bit num
     _changedCallback = () => {};
 
+    getInput = (port) => 0xff;
+    setOutput = (port, value) => {};
     instructionProm = new Uint32Array(1024); //18 bits used
 
     constructor(changedCallback) {
@@ -125,8 +127,11 @@ export class PicoBlaze {
                         aluOpCode = SRX;
                         break;
                     default:
-                        alert("Unknown instruction at " + this._programCounter);
-                        throw new Error("Unknown instruction");
+                        throw new Error(
+                            `Unknown instruction at 0x${this._programCounter.toString(
+                                16
+                            )}`
+                        );
                 }
                 break;
             case 0x30: //call
@@ -156,6 +161,12 @@ export class PicoBlaze {
                             this.call(immediate);
                         }
                         break;
+                    default:
+                        throw new Error(
+                            `Unknown instruction at 0x${this._programCounter.toString(
+                                16
+                            )}`
+                        );
                 }
                 break;
             case 0x34: //jump
@@ -185,6 +196,12 @@ export class PicoBlaze {
                             this.jump(immediate);
                         }
                         break;
+                    default:
+                        throw new Error(
+                            `Unknown instruction at 0x${this._programCounter.toString(
+                                16
+                            )}`
+                        );
                 }
                 break;
             case 0x2a: //return
@@ -214,11 +231,56 @@ export class PicoBlaze {
                             this.return();
                         }
                         break;
+                    default:
+                        throw new Error(
+                            `Unknown instruction at 0x${this._programCounter.toString(
+                                16
+                            )}`
+                        );
                 }
                 break;
+            case 0x06: //fetch immediate
+                doClockCycle = false;
+                this.loadRam(opReg1, immediate);
+                break;
+            case 0x07: //fetch register
+                doClockCycle = false;
+                this.checkRegAddr(opReg2);
+                this.loadRam(opReg1, this._registers[opReg2]);
+                break;
+            case 0x2e: //store immediate
+                doClockCycle = false;
+                this.storeRam(opReg1, immediate);
+                break;
+            case 0x2f: //store register
+                doClockCycle = false;
+                this.checkRegAddr(opReg2);
+                this.storeRam(opReg1, this._registers[opReg2]);
+                break;
+            case 0x04: //input immediate
+                doClockCycle = false;
+                this.input(opReg1, immediate);
+                break;
+            case 0x05: //input register
+                doClockCycle = false;
+                this.checkRegAddr(opReg2);
+                this.input(opReg1, this._registers[opReg2]);
+                break;
+            case 0x2c: //output immediate
+                doClockCycle = false;
+                this.output(opReg1, immediate);
+                break;
+            case 0x2d: //output register
+                doClockCycle = false;
+                this.checkRegAddr(opReg2);
+                this.output(opReg1, this._registers[opReg2]);
+                break;
             default:
-                alert("Unknown instruction at " + this._programCounter);
-                throw new Error("Unknown instruction");
+                throw new Error(
+                    `Unknown instruction at 0x${this._programCounter.toString(
+                        16
+                    )}`
+                );
         }
         this.clockCycle(
             opReg1,
@@ -260,6 +322,16 @@ export class PicoBlaze {
         useInPort,
         aluOpCode
     ) {
+        this.checkRegAddr(operandRegister1);
+        if (useImmediateOp2) {
+            if (immediateVal < 0 || immediateVal > 255) {
+                throw new Error(
+                    `Illegal immediate value 0x${immediateVal.toString(16)}`
+                );
+            }
+        } else {
+            this.checkRegAddr(operandRegister2);
+        }
         const op1 = this._registers[operandRegister1];
         const op2 = useImmediateOp2
             ? immediateVal
@@ -279,6 +351,7 @@ export class PicoBlaze {
         res = 0xff & res;
         this._zeroFlag = res == 0;
         if (resultRegister >= 0) {
+            this.checkRegAddr(resultRegister);
             this._registers[resultRegister] = useInPort
                 ? inPort[useImmediateOp2 ? immediateVal : op2]
                 : res;
@@ -323,31 +396,76 @@ export class PicoBlaze {
             case SRX:
                 return ((op1 >> 1) & 0x7f) | (op1 & 0x80);
             default:
-                alert("Unknown instruction at " + this._programCounter);
-                throw new Error("Unknown instruction");
+                throw new Error(
+                    `Unknown instruction at 0x${this._programCounter.toString(
+                        16
+                    )}`
+                );
         }
     }
 
     storeRam(register, ramAddress) {
+        this.checkRegAddr(register);
+        this.checkRamAddr(ramAddress);
         this._ram[ramAddress] = this._registers[register];
         this._changedCallback();
     }
 
     loadRam(register, ramAddress) {
+        this.checkRegAddr(register);
+        this.checkRamAddr(ramAddress);
         this._registers[register] = this._ram[ramAddress];
         this._changedCallback();
     }
 
     jump(address) {
+        this.checkPgmAddr(addr);
         this._programCounter = address;
         this._changedCallback();
     }
 
     call(address) {
+        this.checkPgmAddr(addr);
         this._stackPointer = (this._stackPointer + 1) % 31;
         this._stack[this._stackPointer] = this._programCounter;
         this._programCounter = address;
         this._changedCallback();
+    }
+
+    input(register, port) {
+        this.checkRegAddr(register);
+        this.checkPortAddr(port);
+        this._registers[register] = this.getInput(port);
+    }
+
+    output(register, port) {
+        this.checkRegAddr(register);
+        this.checkPortAddr(port);
+        this.setOutput(port, this._registers[register]);
+    }
+
+    checkRamAddr(addr) {
+        if (addr < 0 || addr > 63) {
+            throw new Error(`Illegal ram address 0x${addr.toString(16)}`);
+        }
+    }
+
+    checkRegAddr(addr) {
+        if (addr < 0 || addr > 15) {
+            throw new Error(`Illegal register s${addr.toString(16)}`);
+        }
+    }
+
+    checkPgmAddr(addr) {
+        if (addr < 0 || addr > 1023) {
+            throw new Error(`Illegal jump address 0x${addr.toString(16)}`);
+        }
+    }
+
+    checkPortAddr(addr) {
+        if (addr < 0 || addr > 255) {
+            throw new Error(`Illegal port address 0x${addr.toString(16)}`);
+        }
     }
 
     return() {

@@ -13,15 +13,8 @@
                 font-family: 'Courier New', Courier, monospace;
                 padding-left: 12px;
                 line-height: 1.5rem;
-                background: repeating-linear-gradient(
-                    180deg,
-                    transparent,
-                    transparent calc(1.2rem - 1px),
-                    lightgray calc(1.2rem - 1px),
-                    lightgray 1.2rem,
-                    transparent 1.2rem,
-                    transparent 1.5rem
-                );
+                overflow: auto;
+                height: calc(15 * 1.5rem);
             "
         >
             <div
@@ -34,11 +27,26 @@
             >
                 &gt;
             </div>
-            <div style="height: 100%" id="lineNumbers"></div>
+            <div
+                style="min-height: 100%; padding-right: 6px"
+                id="lineNumbers"
+            ></div>
             <div
                 id="code"
                 contenteditable="true"
-                style="height: calc(15 * 1.5rem); flex-grow: 1; overflow: auto"
+                style="
+                    min-height: 100%;
+                    flex-grow: 1;
+                    /*background: repeating-linear-gradient(
+                        180deg,
+                        transparent,
+                        transparent calc(1.2rem - 1px),
+                        lightgray calc(1.2rem - 1px),
+                        lightgray 1.2rem,
+                        transparent 1.2rem,
+                        transparent 1.5rem
+                    );*/
+                "
             ></div>
         </div>
         <br />

@@ -7,6 +7,9 @@ const ram = document.getElementById("ram");
 const registers = document.getElementById("registers");
 const progmem = document.getElementById("progmem");
 const code = document.getElementById("code");
+const run = document.getElementById("btnRun");
+const programCounter = document.getElementById("programCounter");
+const stack = document.getElementById("stack");
 
 const lineNumbers = document.getElementById("lineNumbers");
 lineNumbers.innerText = "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15";
@@ -28,6 +31,23 @@ const pico = new PicoBlaze(() => {
                     .padStart(2, "0")} = 0b${v
                     .toString(2)
                     .padStart(8, "0")} = ${String.fromCharCode(v)}`
+        )
+        .join("\n");
+    programCounter.innerText = `0x${pico._programCounter
+        .toString(16)
+        .padStart(3, "0")} has instruction 0x${pico.instructionProm[
+        pico._programCounter
+    ]
+        .toString(16)
+        .padStart(5, "0")}`;
+    stack.innerText = [...pico._stack]
+        .map(
+            (v, i) =>
+                `0x${i.toString(16).padStart(2, "0")}: 0x${v
+                    .toString(16)
+                    .padStart(3, "0")} = 0b${v.toString(2).padStart(10, "0")}${
+                    pico._stackPointer == i ? "<< Stack pointer" : ""
+                }`
         )
         .join("\n");
 });
@@ -57,7 +77,16 @@ function compileAndShow() {
 code.addEventListener("input", compileAndShow);
 code.addEventListener("change", compileAndShow);
 document.getElementById("btnParse").addEventListener("click", compileAndShow);
-document.getElementById("btnRun").addEventListener("click", () => {});
+run.addEventListener("click", () => {
+    if (pico.shouldRun) {
+        pico.shouldRun = false;
+        run.innerText = "Run";
+    } else {
+        pico.shouldRun = true;
+        run.innerText = "Stop";
+        pico.run();
+    }
+});
 document.getElementById("btnStep").addEventListener("click", () => {
     pico.step();
 });

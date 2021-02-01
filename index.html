@@ -4,13 +4,22 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>PicoBlaze Interpreter</title>
+        <style>
+            .valueList {
+                column-width: 250px;
+                font-family: "Courier New", Courier, monospace;
+            }
+            .mono {
+                font-family: "Courier New", Courier, monospace;
+            }
+        </style>
     </head>
     <body>
         <div
+            class="mono"
             style="
                 position: relative;
                 display: flex;
-                font-family: 'Courier New', Courier, monospace;
                 padding-left: 12px;
                 line-height: 1.5rem;
                 overflow: auto;
@@ -56,13 +65,16 @@
         <button id="btnClear">Clear all</button>
         <button id="btnParse">Parse</button>
         <br /><br />
+        <h5>Program counter</h5>
+        <div id="programCounter" class="mono"></div>
         <h5>Registers:</h5>
-        <div id="registers"></div>
-        <br />
+        <div id="registers" class="valueList"></div>
+        <h5>Stack</h5>
+        <div id="stack" class="valueList"></div>
         <h5>RAM:</h5>
-        <div id="ram" stale="column-width: 250px;"></div>
+        <div id="ram" class="valueList"></div>
         <h5>Progmem:</h5>
-        <div id="progmem" stale="column-width: 250px;"></div>
+        <div id="progmem" class="valueList"></div>
 
         <script src="main.js" type="module"></script>
     </body>

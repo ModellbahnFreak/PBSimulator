@@ -26,6 +26,7 @@ export class PicoBlaze {
     _stackPointer = 30; //5 bit num
     _changedCallback = () => {};
 
+    shouldRun = false;
     getInput = (port) => 0xff;
     setOutput = (port, value) => {};
     instructionProm = new Uint32Array(1024); //18 bits used
@@ -36,8 +37,25 @@ export class PicoBlaze {
         }
     }
 
+    run(delay) {
+        if (shouldRun) {
+            if (this.step() === 0) {
+                setTimeout(
+                    delay,
+                    (() => {
+                        this.run(delay);
+                    }).bind(this),
+                    delay ?? 500
+                );
+            }
+        }
+    }
+
     step() {
         const instr = this.instructionProm[this._programCounter];
+        if (instr === 0) {
+            return 1;
+        }
         const opCode = (instr & 0xff000) >> 12;
         const opReg1 = (instr & 0xf00) >> 8;
         const opReg2 = (instr & 0xf0) >> 4;
@@ -293,6 +311,7 @@ export class PicoBlaze {
             aluOpCode
         );
         this._programCounter = (this._programCounter + 1) % 1024;
+        return 0;
     }
 
     clearRegisters() {

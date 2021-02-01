@@ -13,9 +13,8 @@ const stack = document.getElementById("stack");
 const pointer = document.getElementById("pointer");
 const stepDelay = document.getElementById("stepDelay");
 const lblStepDelay = document.getElementById("lblStepDelay");
-
 const lineNumbers = document.getElementById("lineNumbers");
-lineNumbers.innerText = "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15";
+let ramFields;
 
 const pico = new PicoBlaze(() => {
     registers.innerText = [...pico._registers]
@@ -26,23 +25,16 @@ const pico = new PicoBlaze(() => {
                     .padStart(2, "0")} = 0b${v.toString(2).padStart(8, "0")}`
         )
         .join("\n");
-    ram.innerText = [...pico._ram]
-        .map(
-            (v, i) =>
-                `0x${i.toString(16).padStart(2, "0")}: 0x${v
-                    .toString(16)
-                    .padStart(2, "0")} = 0b${v
-                    .toString(2)
-                    .padStart(8, "0")} = ${String.fromCharCode(v)}`
-        )
-        .join("\n");
-    programCounter.innerText = `0x${pico._programCounter
-        .toString(16)
-        .padStart(3, "0")} has instruction 0x${pico.instructionProm[
-        pico._programCounter
-    ]
-        .toString(16)
-        .padStart(5, "0")}`;
+    if (ramFields) {
+        pico._ram.forEach((v, i) => {
+            ramFields[i].field.value = v.toString(16).padStart(2, "0");
+            ramFields[i].label.innerText = `0x${i
+                .toString(16)
+                .padStart(2, "0")}: 0b${v
+                .toString(2)
+                .padStart(8, "0")} = ${String.fromCharCode(v)} = 0x`;
+        });
+    }
     stack.innerText = [...pico._stack]
         .map(
             (v, i) =>
@@ -55,8 +47,6 @@ const pico = new PicoBlaze(() => {
         .join("\n");
     pointer.style.top = pico._programCounter * 1.5 + "em";
 });
-pico.clearRam();
-pico.clearRegisters();
 function compileAndShow() {
     pico.instructionProm = new Uint32Array(
         code.innerText
@@ -113,3 +103,35 @@ document.getElementById("btnClear").addEventListener("click", () => {
     pico.clearRam();
     pico.clearRegisters();
 });
+
+ramFields = [...pico._ram].map((v, i) => {
+    const field = document.createElement("input");
+    field.type = "text";
+    field.id = "ramAddr" + i;
+    field.pattern = "[0-9a-fA-F]{0,2}";
+    const label = document.createElement("label");
+    field.addEventListener("input", () => {
+        if (field.validity.valid) {
+            const val = parseInt(field.value, 16);
+            if (isFinite(val)) {
+                pico._ram[i] = val;
+                label.innerText = `0x${i
+                    .toString(16)
+                    .padStart(2, "0")}: 0b${pico._ram[i]
+                    .toString(2)
+                    .padStart(8, "0")} = ${String.fromCharCode(v)} = 0x`;
+            }
+        }
+    });
+    label.setAttribute("for", field.id);
+    label.innerText = `0x${i.toString(16).padStart(2, "0")}: 0b${v
+        .toString(2)
+        .padStart(8, "0")} = ${String.fromCharCode(v)} = 0x`;
+    ram.appendChild(label);
+    ram.appendChild(field);
+    ram.appendChild(document.createElement("br"));
+    return { field, label };
+});
+
+pico.clearRam();
+pico.clearRegisters();

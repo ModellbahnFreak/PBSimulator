@@ -38,13 +38,14 @@ export class PicoBlaze {
         }
     }
 
-    async run(delay) {
+    run(delay, lastStep) {
         if (this.shouldRun) {
             try {
-                if (this.step() === 0) {
+                const thisStep = this.step();
+                if (thisStep !== lastStep) {
                     setTimeout(
                         (() => {
-                            this.run(delay);
+                            this.run(delay, thisStep);
                         }).bind(this),
                         delay ?? 500
                     );
@@ -53,7 +54,17 @@ export class PicoBlaze {
                 }
             } catch (err) {
                 this.shouldRun = false;
+                throw err;
             }
+        }
+    }
+
+    runFull() {
+        let lastStep = -1;
+        let thisStep = this.step();
+        while (lastStep !== thisStep) {
+            lastStep = thisStep;
+            thisStep = this.step();
         }
     }
 
@@ -322,7 +333,14 @@ export class PicoBlaze {
         }
         this._programCounter = (this._programCounter + 1) % 1024;
         this._changedCallback();
-        return 0;
+        return this._programCounter;
+    }
+
+    fullReset() {
+        this.shouldRun = false;
+        this.clearRegisters();
+        this.clearRam();
+        this.reset();
     }
 
     clearRegisters() {
@@ -376,16 +394,56 @@ export class PicoBlaze {
             aluOpCode == SRX
         ) {
             this._carryFlag = (op1 & 0x01) === 0x01;
-        } else {
+        } else if (
+            aluOpCode == ADD ||
+            aluOpCode == ADDCY ||
+            aluOpCode == RL ||
+            aluOpCode == SL0 ||
+            aluOpCode == SL1 ||
+            aluOpCode == SLA ||
+            aluOpCode == SLX ||
+            aluOpCode == SUB ||
+            aluOpCode == SUBCY
+        ) {
             this._carryFlag = ((res >> 8) & 0x01) === 0x01;
+        } else if (aluOpCode == OR || aluOpCode == AND || aluOpCode == XOR) {
+            this._carryFlag = false;
         }
         res = 0xff & res;
-        this._zeroFlag = res == 0;
+        if (
+            aluOpCode == OR ||
+            aluOpCode == RL ||
+            aluOpCode == RR ||
+            aluOpCode == SL1 ||
+            aluOpCode == SLA ||
+            aluOpCode == SLX ||
+            aluOpCode == SR0 ||
+            aluOpCode == SRA ||
+            aluOpCode == SRX ||
+            aluOpCode == SUB ||
+            aluOpCode == SUBCY ||
+            aluOpCode == XOR ||
+            aluOpCode == AND ||
+            aluOpCode == ADDCY ||
+            aluOpCode == ADD
+        ) {
+            this._zeroFlag = res == 0;
+        } else if (aluOpCode == SL1 || aluOpCode == SR1) {
+            this._zeroFlag = false;
+        }
         if (resultRegister >= 0) {
             this.checkRegAddr(resultRegister);
             this._registers[resultRegister] = useInPort
                 ? inPort[useImmediateOp2 ? immediateVal : op2]
                 : res;
+        } else {
+            if (aluOpCode == AND) {
+                let parity = res;
+                parity ^= parity >> 4;
+                parity ^= parity >> 2;
+                parity ^= parity >> 1;
+                this._carryFlag = (~parity & 0x01) === 0x01;
+            }
         }
     }
 
@@ -498,6 +556,179 @@ export class PicoBlaze {
     checkPortAddr(addr) {
         if (addr < 0 || addr > 255) {
             throw new Error(`Illegal port address 0x${addr.toString(16)}`);
+        }
+    }
+
+    getInstuctionStr(instruction) {
+        const instr = this.instructionProm[this._programCounter];
+        const opCode = (instr & 0xff000) >> 12;
+        const opReg1 = (instr & 0xf00) >> 8;
+        const opReg2 = (instr & 0xf0) >> 4;
+        const immediate = instr & 0xff;
+        let aluOpCode = 0;
+        let useImmediate = false;
+        let storeResult = true;
+        let doClockCycle = true;
+        switch (opCode) {
+            case 0x0a: //AND immediate
+                return `AND s${opReg1.toString(16)}, ${immediate.toString(16)}`;
+            case 0x0b: //AND
+                return `AND s${opReg1.toString(16)}, s${opReg2.toString(16)}`;
+            case 0x0c: //OR immediate
+                return `OR s${opReg1.toString(16)}, ${immediate.toString(16)}`;
+            case 0x0d: //OR
+                return `OR s${opReg1.toString(16)}, s${opReg2.toString(16)}`;
+            case 0x0e: //XOR immediate
+                return `XOR s${opReg1.toString(16)}, ${immediate.toString(16)}`;
+            case 0x0f: //XOR
+                return `XOR s${opReg1.toString(16)}, s${opReg2.toString(16)}`;
+            case 0x18: //ADD immediate
+                return `ADD s${opReg1.toString(16)}, ${immediate.toString(16)}`;
+            case 0x19: //ADD
+                return `ADD s${opReg1.toString(16)}, s${opReg2.toString(16)}`;
+            case 0x1a: //ADDCY immediate
+                return `ADDCY s${opReg1.toString(16)}, ${immediate.toString(
+                    16
+                )}`;
+            case 0x1b: //ADDCY
+                return `ADDCY s${opReg1.toString(16)}, s${opReg2.toString(16)}`;
+            case 0x1c: //SUB immediate
+                return `SUB s${opReg1.toString(16)}, ${immediate.toString(16)}`;
+            case 0x1d: //SUB
+                return `SUB s${opReg1.toString(16)}, s${opReg2.toString(16)}`;
+            case 0x1e: //SUBCY immediate
+                return `SUBCY s${opReg1.toString(16)}, ${immediate.toString(
+                    16
+                )}`;
+            case 0x1f: //SUBCY
+                return `SUBCY s${opReg1.toString(16)}, s${opReg2.toString(16)}`;
+            case 0x14: //COMPARE immediate
+                return `COMPARE s${opReg1.toString(16)}, ${immediate.toString(
+                    16
+                )}`;
+            case 0x15: //COMPARE
+                return `COMPARE s${opReg1.toString(16)}, s${opReg2.toString(
+                    16
+                )}`;
+            case 0x12: //TEST immediate
+                return `TEST s${opReg1.toString(16)}, ${immediate.toString(
+                    16
+                )}`;
+            case 0x13: //TEST
+                return `TEST s${opReg1.toString(16)}, s${opReg2.toString(16)}`;
+            case 0x00: //LOAD immediate
+                return `LOAD s${opReg1.toString(16)}, ${immediate.toString(
+                    16
+                )}`;
+            case 0x01: //LOAD register
+                return `LOAD s${opReg1.toString(16)}, s${opReg2.toString(16)}`;
+            case 0x20: //shift
+                switch (immediate) {
+                    case 0x02: //RL
+                        return `RL s${opReg1.toString(16)}`;
+                    case 0x0c: //RR
+                        return `RR s${opReg1.toString(16)}`;
+                    case 0x06: //SL0
+                        return `SL0 s${opReg1.toString(16)}`;
+                    case 0x07: //SL1
+                        return `SL1 s${opReg1.toString(16)}`;
+                    case 0x00: //SLA
+                        return `SLA s${opReg1.toString(16)}`;
+                    case 0x04: //SLX
+                        return `SLX s${opReg1.toString(16)}`;
+                    case 0x0e: //SR0
+                        return `SR0 s${opReg1.toString(16)}`;
+                    case 0x0f: //SR1
+                        return `SR1 s${opReg1.toString(16)}`;
+                    case 0x08: //SRA
+                        return `SRA s${opReg1.toString(16)}`;
+                    case 0x0a: //SRX
+                        return `SRX s${opReg1.toString(16)}`;
+                    default:
+                        throw new Error(`Unknown shift type`);
+                }
+            case 0x30: //call
+                return `CALL ${immediate.toString(16)}`;
+            case 0x31: //conditional call
+                doClockCycle = false;
+                switch (opReg1) {
+                    case 0x0: //call if zero
+                        return `CALL Z, ${immediate.toString(16)}`;
+                    case 0x4: //call not zero
+                        return `CALL NZ, ${immediate.toString(16)}`;
+                    case 0x8: //call if carry
+                        return `CALL C, ${immediate.toString(16)}`;
+                    case 0xc: //call not carry
+                        return `CALL NC, ${immediate.toString(16)}`;
+                    default:
+                        throw new Error(`Unknown call type`);
+                }
+            case 0x34: //jump
+                return `JUMP ${immediate.toString(16)}`;
+            case 0x35: //conditional jump
+                doClockCycle = false;
+                switch (opReg1) {
+                    case 0x0: //jump if zero
+                        return `JUMP Z, ${immediate.toString(16)}`;
+                    case 0x4: //jump not zero
+                        return `JUMP NZ, ${immediate.toString(16)}`;
+                    case 0x8: //jump if carry
+                        return `JUMP C, ${immediate.toString(16)}`;
+                    case 0xc: //jump not carry
+                        return `JUMP NC, ${immediate.toString(16)}`;
+                    default:
+                        throw new Error(`Unknown jump type`);
+                }
+            case 0x2a: //return
+                return `RETURN ${immediate.toString(16)}`;
+            case 0x2b: //conditional return
+                doClockCycle = false;
+                switch (opReg1) {
+                    case 0x0: //return if zero
+                        return `RETURN Z, ${immediate.toString(16)}`;
+                    case 0x4: //return not zero
+                        return `RETURN NZ, ${immediate.toString(16)}`;
+                    case 0x8: //return if carry
+                        return `RETURN C, ${immediate.toString(16)}`;
+                    case 0xc: //return not carry
+                        return `RETURN NC, ${immediate.toString(16)}`;
+                    default:
+                        throw new Error(`Unknown return type`);
+                }
+            case 0x06: //fetch immediate
+                return `FETCH s${opReg1.toString(16)}, ${immediate.toString(
+                    16
+                )}`;
+            case 0x07: //fetch register
+                return `FETCH s${opReg1.toString(16)}, (s${opReg2.toString(
+                    16
+                )})`;
+            case 0x2e: //store immediate
+                return `STORE s${opReg1.toString(16)}, ${immediate.toString(
+                    16
+                )}`;
+            case 0x2f: //store register
+                return `STORE s${opReg1.toString(16)}, (s${opReg2.toString(
+                    16
+                )})`;
+            case 0x04: //input immediate
+                return `INPUT s${opReg1.toString(16)}, ${immediate.toString(
+                    16
+                )}`;
+            case 0x05: //input register
+                return `INPUT s${opReg1.toString(16)}, (s${opReg2.toString(
+                    16
+                )})`;
+            case 0x2c: //output immediate
+                return `OUTPUT s${opReg1.toString(16)}, ${immediate.toString(
+                    16
+                )}`;
+            case 0x2d: //output register
+                return `OUTPUT s${opReg1.toString(16)}, (s${opReg2.toString(
+                    16
+                )})`;
+            default:
+                throw new Error(`Unknown instruction type`);
         }
     }
 }

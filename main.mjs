@@ -1,4 +1,4 @@
-import { compile } from "./compiler.js";
+import { compile, loader } from "./compiler.js";
 import { PicoBlaze } from "./picoBlaze.js";
 
 window.addEventListener("error", (err) => alert(err.message));
@@ -34,6 +34,15 @@ const pico = new PicoBlaze(() => {
             ramFields[i].label2.innerText = ` = ${String.fromCharCode(v)}`;
         });
     }
+    programCounter.innerText = `0x${pico._programCounter
+        .toString(16)
+        .padStart(3, "0")} has instruction 0x${pico.instructionProm[
+        pico._programCounter
+    ]
+        .toString(16)
+        .padStart(5, "0")} (${pico.getInstuctionStr(
+        pico.instructionProm[pico._programCounter]
+    )})`;
     stack.innerText = [...pico._stack]
         .map(
             (v, i) =>
@@ -47,12 +56,7 @@ const pico = new PicoBlaze(() => {
     pointer.style.top = pico._programCounter * 1.5 + "em";
 });
 function compileAndShow() {
-    pico.instructionProm = new Uint32Array(
-        code.innerText
-            .split("\n")
-            .filter((l) => l.length > 0)
-            .map((v) => parseInt(v, 16))
-    );
+    pico.instructionProm = loader(code.innerText);
     progmem.innerText = [...pico.instructionProm]
         .map(
             (v, i) =>
@@ -66,13 +70,19 @@ function compileAndShow() {
         lineNumText += `0x${i.toString(16).padStart(3, "0")}\n`;
     }
     lineNumbers.innerText = lineNumText;
+    pico._changedCallback();
 }
 code.addEventListener("input", compileAndShow);
 code.addEventListener("change", compileAndShow);
 stepDelay.addEventListener("input", () => {
     lblStepDelay.innerText = stepDelay.value;
 });
-document.getElementById("btnParse").addEventListener("click", compileAndShow);
+document.getElementById("btnParse").addEventListener("click", () => {
+    compileAndShow();
+    code.innerText = [...pico.instructionProm]
+        .map((v, i) => v.toString(16).padStart(5, "0"))
+        .join("\n");
+});
 run.addEventListener("click", () => {
     if (pico.shouldRun) {
         pico.shouldRun = false;
